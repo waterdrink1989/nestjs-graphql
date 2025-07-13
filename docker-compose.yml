@@ -1,0 +1,44 @@
+services:
+  mongodb: # MongoDB database service
+    container_name: mfn-mongodb-dev
+    image: mongo:4.4.29
+    ports:
+      - "27017:27017" # Expose MongoDB port to the host machine
+    volumes:
+      - mfn-mongodb-data:/data/db # Persist MongoDB data using a Docker named volume
+      - ./mongod.conf:/etc/mongod.conf:ro # Mount MongoDB config file as read-only
+    command: ["mongod", "--config", "/etc/mongod.conf"] # Start MongoDB with custom config
+#    command: ["mongod"] # Start MongoDB with custom config
+    networks:
+      - mfn-network
+    restart: unless-stopped # Restart container automatically unless stopped manually
+
+  backend: # Node.js + Express backend service
+    container_name: mfn-backend-dev
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"   # Expose backend app port
+      - "9229:9229"   # Expose Node.js debugger port
+    volumes:
+      - .:/usr/src/nodejs-nestjs-mongodb-backend-starter # Mount project directory into container
+      - /usr/src/nodejs-nestjs-mongodb-backend-starter/node_modules # Prevent overwriting node_modules
+    depends_on:
+      - mongodb # Ensure MongoDB service starts before backend
+    networks:
+      - mfn-network
+    environment:
+      - NODE_ENV=development # Set environment to development
+      - MONGO_URI=mongodb://mongodb:27017/mfn_db # MongoDB connection string using service name
+    command: node --inspect=0.0.0.0:9229 -r ts-node/register src/main.ts # Start backend with debugger and TypeScript support
+    restart: unless-stopped # Restart container automatically unless stopped manually
+
+volumes:
+  mfn-mongodb-data: # Named volume for MongoDB data persistence
+    name: mfn-mongodb-data
+
+networks:
+  mfn-network: # Custom bridge network for service isolation and communication
+    driver: bridge
+    name: mfn-network
